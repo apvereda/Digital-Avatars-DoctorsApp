@@ -1,0 +1,15 @@
+<component name="libraryTable">
+  <library name="Gradle: com.couchbase.lite:couchbase-lite-android:2.7.0@aar">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/775429bd9e7d0f5b3a28a9b942255a2a/jetified-couchbase-lite-android-2.7.0/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/775429bd9e7d0f5b3a28a9b942255a2a/jetified-couchbase-lite-android-2.7.0/res" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/775429bd9e7d0f5b3a28a9b942255a2a/jetified-couchbase-lite-android-2.7.0/AndroidManifest.xml" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.couchbase.lite/couchbase-lite-android/2.7.0/21d12977e8fdd8816bd13fc1b03445b2c5284328/couchbase-lite-android-2.7.0-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.couchbase.lite/couchbase-lite-android/2.7.0/e601daea73ce724594f0f6754aeadf7b5473b0a3/couchbase-lite-android-2.7.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
