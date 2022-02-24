@@ -132,86 +132,12 @@ public class HomeFragment extends Fragment {
     }
 
     private void startApp() throws RemoteException {
-        String app1 = "@app:name('TripShare')" +
-                "@source(type='android-broadcast', identifier='TripShare_NewTrip'," +
-                "@map(type='keyvalue',fail.on.missing.attribute='false'," +
-                "@attributes(originLatitude='originLatitude', originLongitude='originLongitude', " +
-                "destinationLatitude='destinationLatitude', destinationLongitude='destinationLongitude', date='date', time='time'," +
-                "maxDistance='maxDistance', waitingTime='waitingTime', onesignalid='onesignalid')))" +
-                "define stream newTrip(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double," +
-                "date String, time String, maxDistance double, waitingTime double, onesignalid String);" +
-
-                "@source(type='android-message', appid ='TripShare_TripQuery'," +
-                "@map(type='keyvalue',fail.on.missing.attribute='false'," +
-                "@attributes(originLatitude='originLatitude', originLongitude='originLongitude', " +
-                "destinationLatitude='destinationLatitude', destinationLongitude='destinationLongitude', date='date', time='time'," +
-                "maxDistance='maxDistance', waitingTime='waitingTime', onesignalid='onesignalid')))" +
-                "define stream receiveTripQuery(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double, " +
-                "date String, time String, maxDistance double, waitingTime double, onesignalid String);"+
-
-                "@source(type='android-broadcast', identifier='TripShare_NewProposal'," +
-                "@map(type='keyvalue',fail.on.missing.attribute='false'," +
-                "@attributes(originLatitude='originLatitude', originLongitude='originLongitude', " +
-                "destinationLatitude='destinationLatitude', destinationLongitude='destinationLongitude', date='date', time='time'," +
-                "recipient='recipient')))" +
-                "define stream newProposal(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double," +
-                "date String, time String, recipient String);" +
-
-                "@source(type='android-message', appid ='TripShare_TripProposal'," +
-                "@map(type='keyvalue',fail.on.missing.attribute='false'," +
-                "@attributes(originLatitude='originLatitude', originLongitude='originLongitude', " +
-                "destinationLatitude='destinationLatitude', destinationLongitude='destinationLongitude', date='date', time='time'," +
-                "sender='sender')))" +
-                "define stream receiveProposal(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double, " +
-                "date String, time String, sender String);"+
-
-
-
-                "@sink(type='android-message' , appid='TripShare_TripQuery', recipients='Relations'," +
-                "@map(type='keyvalue'))"+
-                "define stream sendTripQuery(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double, " +
-                "date String, time String, maxDistance double, waitingTime double, onesignalid String); " +
-
-                "@sink(type='android-broadcast', identifier='TripShare_TripQuery', " +
-                "@map(type='keyvalue'))" +
-                "define stream tripQuery(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double, " +
-                "date String, time String, maxDistance double, waitingTime double, onesignalid String); " +
-
-                "@sink(type='android-message' , appid='TripShare_TripProposal', recipients='Relations'," +
-                "@map(type='keyvalue'))"+
-                "define stream sendProposal(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double, " +
-                "date String, time String, recipient String); " +
-
-                "@sink(type='android-broadcast', identifier='TripShare_TripProposal', " +
-                "@map(type='keyvalue'))" +
-                "define stream Proposal(originLatitude double, originLongitude double, destinationLatitude double, destinationLongitude double, " +
-                "date String, time String, sender String); " +
-
-                "@sink(type='android-notification', title='TripShareProposal',multiple.notifications = 'true', " +
-                "@map(type='keyvalue', @payload('Recibida propuesta de viaje de {{sender}} para el dia {{date}} a las {{time}}')))" +
-                //"@map(type='keyvalue', @payload(message = 'Recibida propuesta de viaje de {{sender}} para el dia {{date}} a las {{time}}')))" +
-                "define stream notifyProposal(sender String, date String, time String); " +
-
-
-                "from newTrip select * insert into sendTripQuery;"+
-                "from receiveTripQuery select * insert into tripQuery;"+
-                "from newProposal select * insert into sendProposal;"+
-                "from receiveProposal select * insert into Proposal;"+
-                "from receiveProposal select sender, date, time insert into notifyProposal;";
-
-        /*
-        //"from stepsInStream#window.timeBatch(20 sec) select sum(steps) as numSteps insert into leftStepsInStream;"+
-                //"from leftStepsInStream[numSteps<=2000] select numSteps, 2000-numSteps as faltan insert into sendMessage;"+
-        "@sink(type='android-message' , appid='TripShare_TripQuery', recipients='Relations'," +
-                "@map(type='keyvalue', @payload(message = 'Viajas desde {{origin}} a {{destination}} el dia {{date}} a las {{time}}?', " +
-                "origin = '{{origin}}', destination = '{{destination}}', date = '{{date}}', time = '{{time}}')))"+
-                "define stream sendMessage(origin String, destination String, date String, time String); " +
-         */
+        String app1 = "";
         apps.add(app1);
         dur = new DoctorsReceiver();
         IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(DoctorsApp.EV_TRIPQUERY);
-        intentFilter.addAction(DoctorsApp.EV_TRIPPROPOSAL);
+        intentFilter.addAction(DoctorsApp.EV_CHECKDOCTORTRUST);
+        intentFilter.addAction(DoctorsApp.EV_CHECKDOCTORREPUTATION);
         SiddhiAppService.getServiceInstance().registerReceiver(dur, intentFilter);
         for(String app: apps) {
             appnames.add(SiddhiService.getServiceConnection(getActivity().getApplicationContext()).startSiddhiApp(app));
@@ -256,19 +182,4 @@ public class HomeFragment extends Fragment {
             }
         }
     }
-
-    /*private class DataUpdateReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().equals("TripQuery")) {
-                String text="Me ha llegado una peticion de viaje: "
-                        + intent.getStringExtra("origin") + " => "
-                        + intent.getStringExtra("destination");
-                Log.i("Digital-Avatars", text);
-                //tratar el evento y luego devolver la respuesta al cep como un broadcast intent
-                //SiddhiAppService.getServiceInstance().sendBroadcast(intent);
-            }
-
-        }
-    }*/
 }

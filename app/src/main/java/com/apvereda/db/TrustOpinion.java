@@ -220,6 +220,7 @@ public class TrustOpinion {
                 .from(DigitalAvatar.getDataSource())
                 .where(Expression.property("type").equalTo(Expression.string("Opinion"))
                         .and(Expression.property("Trustee").equalTo(Expression.string(uid)))
+                        .and(Expression.property("Truster").notEqualTo(Expression.string(Avatar.getAvatar().getUID())))
                         .and(Expression.property("Referral").equalTo(Expression.booleanValue(false))));
         try {
             ResultSet rs = query.execute();

@@ -14,10 +14,13 @@ import android.widget.TextView;
 
 import com.apvereda.db.Avatar;
 import com.apvereda.db.Doctor;
+import com.apvereda.db.ReputationOpinion;
+import com.apvereda.db.TrustOpinion;
 import com.apvereda.digitalavatars.ui.friendslist.MyFriendsFragment;
 import com.apvereda.digitalavatars.ui.addfriend.AddFriendFragment;
 import com.apvereda.digitalavatars.ui.home.HomeFragment;
 import com.apvereda.digitalavatars.ui.profile.ProfileFragment;
+import com.apvereda.uDataTypes.SBoolean;
 import com.apvereda.utils.DigitalAvatar;
 import com.apvereda.utils.OneSignalService;
 import com.apvereda.utils.SiddhiService;
@@ -141,7 +144,6 @@ public class DrawerActivity extends AppCompatActivity {
         OneSignalService.initialize(getApplicationContext());
         createNotificationChannel();
         firebaseLogin();
-        createDoctorsData();
 
         // Passing each menu ID as a set of Ids because each
         // menu should be considered as top level destinations.
@@ -169,34 +171,7 @@ public class DrawerActivity extends AppCompatActivity {
         // new UpdateTask().execute();
     }
 
-    private void createDoctorsData() {
-        if(Doctor.getAllDoctors().isEmpty()){
-            Doctor doctor = new Doctor("Dr. Liendre", "Cardiology", "123456789", "liendre@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Antonio", "Cardiology", "234567891", "antonio@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Nathalie", "Cardiology", "345678912", "nathalie@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Alejandro", "Dermatology", "456789123", "alejandro@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Carlos", "Dermatology", "567891234", "carlos@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. House", "Neurology", "678912345", "house@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Strange", "Neurology", "789123456", "strange@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Who", "Neurology", "891234567", "who@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Zhivago", "Pneumology", "912345678", "zhivago@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Dolittle", "Pediatrics", "111111111", "dolittle@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Doctor", "Pediatrics", "222222222", "doctor@doctor.com");
-            Doctor.createDoctor(doctor);
-            doctor = new Doctor("Dr. Grey", "Pediatrics", "333333333", "grey@doctor.com");
-            Doctor.createDoctor(doctor);
-        }
-    }
+
 /*
     private class UpdateTask extends AsyncTask<String, String,String> {
         protected String doInBackground(String... urls) {

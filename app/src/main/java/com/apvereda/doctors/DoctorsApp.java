@@ -2,158 +2,138 @@ package com.apvereda.doctors;
 
 import android.util.Log;
 
-import com.apvereda.db.Contact;
-import com.apvereda.db.Proposal;
-import com.apvereda.db.Trip;
+import com.apvereda.db.Avatar;
+import com.apvereda.db.Doctor;
+import com.apvereda.db.ReputationOpinion;
 import com.apvereda.db.TrustOpinion;
 import com.apvereda.uDataTypes.SBoolean;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class DoctorsApp {
-    public static final String ORIGIN_LAT ="originLatitude";
-    public static final String ORIGIN_LON ="originLongitude";
-    public static final String DESTINATION_LAT ="destinationLatitude";
-    public static final String DESTINATION_LON ="destinationLongitude";
-    public static final String DATE ="date";
-    public static final String TIME ="time";
-    public static final String SENDER ="sender";
-    public static final String ONESIGNAL ="onesignalid";
-    public static final String RECIPIENT ="recipient";
-    public static final String MAX_DISTANCE ="maxDistance";
-    public static final String MAX_WAIT ="waitingTime";
-    public static final String EV_NEWTRIP ="TripShare_NewTrip"; //User enters new trip
-    public static final String EV_TRIPQUERY ="TripShare_TripQuery"; //Contact receives trip query
-    public static final String EV_NEWPROPOSAL ="TripShare_NewProposal"; //Contact responds with a proposal
-    public static final String EV_TRIPPROPOSAL ="TripShare_TripProposal"; //User receives proposal from a contact
+    public static final String EV_CHECKDOCTORTRUST ="TripShare_TripQuery";
+    public static final String EV_CHECKDOCTORREPUTATION ="TripShare_TripProposal";
 
-
-
-    private List<Proposal> trustedProposals = new ArrayList<>();
-    private List<Proposal> untrustedProposals = new ArrayList<>();
-    private Trip tripRequest;
     private static DoctorsApp app;
 
-    public static DoctorsApp getApp(Trip t){
+    public static DoctorsApp getApp(){
         if (app == null){
-            app = new DoctorsApp(t);
+            app = new DoctorsApp();
         }
         return app;
     }
 
-    private DoctorsApp(Trip t){
-        trustedProposals = new ArrayList<>();
-        untrustedProposals = new ArrayList<>();
-        tripRequest = t;
-    }
+    private DoctorsApp(){  }
 
-    public List<Proposal> getTrustedProposals() {
-        return trustedProposals;
-    }
-
-    public void setTrustedProposals(List<Proposal> trustedProposals) {
-        this.trustedProposals = trustedProposals;
-    }
-
-    public List<Proposal> getUntrustedProposals() {
-        return untrustedProposals;
-    }
-
-    public void setUntrustedProposals(List<Proposal> untrustedProposals) {
-        this.untrustedProposals = untrustedProposals;
-    }
-
-    public void setTripRequest(Trip tripRequest) {
-        this.tripRequest = tripRequest;
-        trustedProposals = new ArrayList<>();
-        untrustedProposals = new ArrayList<>();
-    }
-
-    public Trip getSimilarTrip(Trip t, double distance, double wait) {
-        List<Trip> candidates = Trip.getTripbyDate(t.getDate());
-        for (int i=0; i< candidates.size(); i++){
-            Trip trip = candidates.get(i);
-            double distanceOrigin = distance(t.getOriginLat(), trip.getOriginLat(), t.getOriginLon(), trip.getOriginLon(),0,0);
-            double distanceDestination = distance(t.getDestinationLat(), trip.getDestinationLat(), t.getDestinationLon(), trip.getDestinationLon(),0,0);
-            int hour1 = Integer.parseInt(t.getTime().split(":")[0]);
-            int minutes1 = Integer.parseInt(t.getTime().split(":")[1]);
-            int hour2 = Integer.parseInt(trip.getTime().split(":")[0]);
-            int minutes2 = Integer.parseInt(trip.getTime().split(":")[1]);
-            double timediff = (Math.abs(hour1-hour2) * 60) + (Math.abs(minutes1-minutes2));
-            Log.i("DigitalAvatars", "La diferencia de tiempo es " + timediff);
-            Log.i("DigitalAvatars", "La distancia es " + distanceDestination);
-            if(distanceOrigin > distance || distanceDestination > distance || timediff > wait){
-                candidates.remove(i);
-            }
+    public void checkDoctorsReputation(String specialty) {
+        List<Doctor> doctors = Doctor.getDoctorsBySpecialty(specialty);
+        for (Doctor doctor : doctors){
+            checkDoctorReputation(doctor.getEmail());
         }
-        return (candidates.isEmpty()) ? null : candidates.get(0);
     }
 
-    public boolean checkSenderTrust(String sender) {
-        List<TrustOpinion> direct = TrustOpinion.getDirectOpinionForTrustee(Contact.getContactByEmail(sender).getUID());
-        if(!direct.isEmpty()){
-            Log.i("DigitalAvatars", "Tengo una opinion directa sobre "+sender+" con valor "+direct.get(0).getTrust()+" y proyección "+direct.get(0).getTrust().projection());
-            return (direct.get(0).getTrust().projection() >= 0.5) ? true : false;
+    public List<Doctor> selectDoctor(String specialty) {
+        // Compute my own trust
+        checkDoctorsTrust(specialty);
+        // Search for a valid reputation
+        checkDoctorsReputation(specialty);
+        // Fusion trust and reputation to obtain my opinion
+        List<Doctor> doctors = obtainDoctorsOpinion(specialty);
+        // Order by opinion projection
+        Collections.sort(doctors, new Comparator<Doctor>() {
+            @Override
+            public int compare(Doctor o1, Doctor o2) {
+                return Double.compare(o2.getProjection(), o1.getProjection());
+            }
+        });
+        /*doctors.sort(new Comparator<Doctor>() {
+            @Override
+            public int compare(Doctor o1, Doctor o2) {
+                return Double.compare(o1.getProjection(), o2.getProjection());
+            }
+        });*/
+        return doctors;
+    }
+
+    private List<Doctor> obtainDoctorsOpinion(String specialty) {
+        List<Doctor> doctors = Doctor.getDoctorsBySpecialty(specialty);
+        for (Doctor doctor : doctors){
+            double projection = obtainDoctorOpinion(doctor.getEmail());
+            doctor.setProjection(projection);
+        }
+        return doctors;
+    }
+
+    private double obtainDoctorOpinion(String email) {
+        List<SBoolean> opinions = new ArrayList<>();
+        List<TrustOpinion> trust = TrustOpinion.getDirectOpinionForTrustee(email);
+        if (trust.isEmpty()){
+            opinions.add(new SBoolean(0,0,1,0.5));
         } else {
-            List<TrustOpinion> contactsFunctionalTrust = TrustOpinion.getContactsOpinionForTrustee(Contact.getContactByEmail(sender).getUID());
+            opinions.add(trust.get(0).getTrust());
+        }
+        List<ReputationOpinion> reputation = ReputationOpinion.getReputationforReputee(email);
+        if (reputation.isEmpty()){
+            opinions.add(new SBoolean(0,0,1,0.5));
+        } else {
+            opinions.add(reputation.get(0).getReputation());
+        }
+        return SBoolean.weightedBeliefFusion(opinions).projection();
+    }
+
+    private void checkDoctorReputation(String email) {
+        if (!ReputationOpinion.getReputationforReputee(email).isEmpty()){
+            // return reputation
+        } else {
+            // return SBoolean(0,0,1,0.5)
+            // findReputation(email);
+        }
+    }
+
+    public void checkDoctorsTrust(String specialty) {
+        List<Doctor> doctors = Doctor.getDoctorsBySpecialty(specialty);
+        for (Doctor doctor : doctors){
+            //double projection =
+            checkDoctorTrust(doctor.getEmail());
+            //doctor.setProjection(projection);
+        }
+        //return doctors;
+    }
+
+    private void checkDoctorTrust(String email) {
+        //List<TrustOpinion> direct = TrustOpinion.getDirectOpinionForTrustee(Contact.getContactByEmail(email).getUID());
+        List<TrustOpinion> direct = TrustOpinion.getDirectOpinionForTrustee(email);
+        if(!direct.isEmpty()){
+            Log.i("DigitalAvatars", "Tengo una opinion directa sobre "+email+" con valor "+direct.get(0).getTrust()+" y proyección "+direct.get(0).getTrust().projection());
+            //return direct.get(0).getTrust().projection();
+            //return (direct.get(0).getTrust().projection() >= 0.5) ? true : false;
+        } else {
+            //List<TrustOpinion> contactsFunctionalTrust = TrustOpinion.getContactsOpinionForTrustee(Contact.getContactByEmail(email).getUID());
+            List<TrustOpinion> contactsFunctionalTrust = TrustOpinion.getContactsOpinionForTrustee(email);
             List<SBoolean> discounts = new ArrayList<>();
             for(TrustOpinion t : contactsFunctionalTrust){
-                //Log.i("DigitalAvatars", "Tengo opiniones indirectas sobre "+sender);
+                Log.i("DigitalAvatars", "Tengo opiniones indirectas sobre "+email);
                 List<TrustOpinion> aux = TrustOpinion.getReferralOpinionforTrustee(t.getTruster());
                 if(!aux.isEmpty()) {
-                    //Log.i("DigitalAvatars", "Tengo referral sobre "+t.getTruster());
+                    Log.i("DigitalAvatars", "Tengo referral sobre "+t.getTruster());
                     SBoolean s = t.getTrust().discount(aux.get(0).getTrust());
                     discounts.add(s);
                 }
             }
             if(!discounts.isEmpty()){
                 SBoolean s = SBoolean.cumulativeBeliefFusion(discounts);
-                Log.i("DigitalAvatars", "Tengo opiniones indirectas sobre "+sender+" con valor "+s+" y proyección "+s.projection());
-                return (s.projection() >= 0.5) ? true : false;
+                Log.i("DigitalAvatars", "Tengo opiniones indirectas sobre "+email+" con valor "+s+" y proyección "+s.projection());
+                // return (s.projection() >= 0.5) ? true : false;
+                // createTrustOpinion(me, email, s);
+                TrustOpinion.createOpinion(new TrustOpinion(Avatar.getAvatar().getUID(), email, "DoctorsApp", s, "123",false));
+                //return s.projection();
             } else {
-                Log.i("DigitalAvatars", "No hay opiniones sobre "+sender);
-                return false;
+                Log.i("DigitalAvatars", "No hay opiniones sobre "+email);
+                //return -1;
             }
         }
-    }
-
-    public void considerProposal(Proposal p) {
-        trustedProposals.add(p);
-        Log.i("Digital Avatars", " Recibida una propuesta válida de " + p.getSender());
-    }
-
-    public void rejectProposal(Proposal p) {
-        untrustedProposals.add(p);
-        Log.i("Digital Avatars", " Recibida una propuesta no confiable de " + p.getSender());
-    }
-
-    /**
-     * Calculate distance between two points in latitude and longitude taking
-     * into account height difference. If you are not interested in height
-     * difference pass 0.0. Uses Haversine method as its base.
-     *
-     * lat1, lon1 Start point lat2, lon2 End point el1 Start altitude in meters
-     * el2 End altitude in meters
-     * @returns Distance in Meters
-     */
-    private double distance(double lat1, double lat2, double lon1,
-                                  double lon2, double el1, double el2) {
-
-        final int R = 6371; // Radius of the earth
-
-        double latDistance = Math.toRadians(lat2 - lat1);
-        double lonDistance = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        double distance = R * c * 1000; // convert to meters
-
-        double height = el1 - el2;
-
-        distance = Math.pow(distance, 2) + Math.pow(height, 2);
-
-        return Math.sqrt(distance);
     }
 }

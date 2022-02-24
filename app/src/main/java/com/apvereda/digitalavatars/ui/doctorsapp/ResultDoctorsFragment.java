@@ -5,12 +5,12 @@ import android.util.Log;
 import android.widget.ListView;
 
 import com.apvereda.db.Doctor;
-import com.apvereda.db.Proposal;
 import com.apvereda.digitalavatars.R;
 import com.apvereda.doctors.DoctorsApp;
 import com.apvereda.utils.DigitalAvatar;
 
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -46,9 +46,10 @@ public class ResultDoctorsFragment extends AppCompatActivity {
             }
         });*/
         da = DigitalAvatar.getDA();
-        app = DoctorsApp.getApp(null);
-        List<Doctor> trips = Doctor.getDoctorsBySpecialty(specialty);//app.getTrustedProposals();
-        adapter = new ResultsAdapter(this, trips);
+        app = DoctorsApp.getApp();
+        List<Doctor> doctors = app.selectDoctor(specialty);
+        //List<Doctor> trips = Doctor.getDoctorsBySpecialty(specialty);//app.getTrustedProposals();
+        adapter = new ResultsAdapter(this, doctors);
         list = (ListView) findViewById(R.id.listResults);
         list.setAdapter(adapter);
 
@@ -60,10 +61,10 @@ public class ResultDoctorsFragment extends AppCompatActivity {
         //((AppCompatActivity)getActivity()).setSupportActionBar(toolbar);
     }
 
-    public void updateTrips(){
-        List<Doctor> trips = Doctor.getDoctorsBySpecialty(specialty);//app.getTrustedProposals();
-        Log.i("Digital Avatar", "Estos son los doctores que pongo en la lista:"+trips);
-        adapter.setData(trips);
+    public void updateDoctors(){
+        List<Doctor> doctors = app.selectDoctor(specialty);
+        Log.i("Digital Avatar", "Estos son los doctores que pongo en la lista:"+doctors);
+        adapter.setData(doctors);
         list.setAdapter(adapter);
     }
 }

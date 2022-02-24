@@ -24,6 +24,7 @@ public class Doctor {
     private String phone;
     private String email;
     private String address;
+    private double projection;
 
     public Doctor(String name, String specialty, String phone, String email, String id) {
         this.id = id;
@@ -48,6 +49,14 @@ public class Doctor {
         this.phone = phone;
         this.email = email;
         address = "Doctor Street, 123";
+    }
+
+    public double getProjection() {
+        return projection;
+    }
+
+    public void setProjection(double projection) {
+        this.projection = projection;
     }
 
     public String getName() {
@@ -145,7 +154,7 @@ public class Doctor {
             for (Result result : rs) {
                 //Dictionary result = r.getDictionary(0);
                 Doctor c = new Doctor(result.getString("Name"), result.getString("Specialty"),
-                        result.getString("Email"), result.getString("Phone"),
+                        result.getString("Phone"), result.getString("Email"),
                         result.getString("Address"), result.getString("id"));
                 resultList.add(c);
             }

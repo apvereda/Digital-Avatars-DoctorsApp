@@ -9,8 +9,10 @@ import android.widget.BaseAdapter;
 import android.widget.TextView;
 
 import com.apvereda.db.Doctor;
-import com.apvereda.db.Proposal;
+import com.apvereda.db.ReputationOpinion;
+import com.apvereda.db.TrustOpinion;
 import com.apvereda.digitalavatars.R;
+import com.apvereda.uDataTypes.SBoolean;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -41,11 +43,30 @@ public class ResultsAdapter extends BaseAdapter {
             convertView = inflater.inflate(R.layout.result_list_item, null);
         }
 
-
         TextView lbldoctor = (TextView) convertView.findViewById(R.id.lbldoctor);
         lbldoctor.setText(data.get(position).getName() + "    tel: " + data.get(position).getPhone());
         TextView lblspecialty = (TextView) convertView.findViewById(R.id.lblspecialty);
         lblspecialty.setText("Specialty: "+data.get(position).getSpecialty());
+
+        SBoolean trust;
+        List<TrustOpinion> trusts = TrustOpinion.getDirectOpinionForTrustee(data.get(position).getEmail());
+        if (trusts.isEmpty()){
+            trust = new SBoolean(0,0,1,0.5);
+        } else {
+            trust = trusts.get(0).getTrust();
+        }
+        TextView lblTrust = (TextView) convertView.findViewById(R.id.lbltrust);
+        lblTrust.setText("Trust: "+ trust);
+
+        SBoolean reputation;
+        List<ReputationOpinion> repos = ReputationOpinion.getReputationforReputee(data.get(position).getEmail());
+        if (repos.isEmpty()){
+            reputation = new SBoolean(0,0,1,0.5);
+        } else {
+            reputation = repos.get(0).getReputation();
+        }
+        TextView lblReputation = (TextView) convertView.findViewById(R.id.lblreputation);
+        lblReputation.setText("Reputation: "+ reputation);
         //List<String> keys = da.getDoc("Relations").getKeys();
         /*TextView lbldoctor = (TextView) convertView.findViewById(R.id.lblresulttrust);
         lbldoctor.setText(data.get(position).getSender()+" @ "+data.get(position).getDate() + " " + data.get(position).getTime());
