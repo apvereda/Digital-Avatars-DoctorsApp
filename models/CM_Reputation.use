@@ -1,0 +1,362 @@
+model Reputation
+
+class DigitalAvatar 
+    end
+
+abstract class DigitalAvatarRecord 
+    attributes
+        lastModification: Integer init: Clock.allInstances->any(true).now
+        readPrivacy: PrivacyLevel init: #public
+        writePrivacy: PrivacyLevel init: #public
+end
+
+----------------------------------------------------
+abstract class TrustOpinion < DigitalAvatarRecord
+    attributes
+        expirationDate : Integer init: -1
+        trust : SBoolean init:SBoolean(0.8,0.0,0.2,0.5)
+    end
+
+class FunctionalTrust < TrustOpinion
+end
+
+class ReferralTrust < TrustOpinion
+end
+----------------------------------------------------
+
+class ContactGroup < DigitalAvatarRecord
+   end
+
+class PersonalInfo < DigitalAvatarRecord
+    attributes
+        name: String
+        phone: String
+        address: String
+        email: String
+    end
+
+class Contact < PersonalInfo
+    attributes
+        contactDA:DigitalAvatar
+   end
+
+class Doctor < PersonalInfo
+    attributes 
+        speciality:Set(String)
+    end
+
+----------------------------------------------------
+-- class Application
+-- end
+
+abstract class Application 
+    end
+
+----------------------------------------------------
+class AppManager
+    attributes
+        expirationTime : Integer  init: 1000
+    operations
+        computeReputation(person:PersonalInfo)
+            begin
+                declare combinedFT:Sequence(SBoolean), repo:ReputationOpinion;
+                -- first, we collect all trust opinions
+                repo:=new ReputationOpinion;
+                combinedFT := self.client->iterate(c; s:Sequence(SBoolean) = Sequence{} |
+                            let o:SBoolean = c.directFunctionalTrust(c.da.me,person) in
+                            if o=null then s else s->append(o) endif
+                            );
+                if combinedFT->notEmpty() then -- at least one trust
+                    -- second, we merge them using the ECBF fusion operator
+                    repo.reputation:= let f:SBoolean = combinedFT->first() in
+                        f.epistemicCumulativeBeliefFusion(combinedFT->excluding(f));
+                    repo.expirationDate := self.client->any(true).da.clock.now + self.expirationTime;
+                    -- finally, we update all clients with the new info.
+                    for l in self.client do
+                        l.updateReputation(person,repo);
+                    end
+                end
+            end
+
+/* previous version
+             begin 
+                declare previousRT : Sequence(ReputationOpinion), 
+                        combinedFT : Sequence(SBoolean), 
+                        rep: ReputationOpinion, 
+                        f : SBoolean;
+                previousRT := self.client.reputation->select(o| o.reputee=trustee and o.expirationDate <> -1 and o.expirationDate > self.client->any(true).da.clock.now)->asSequence();
+                if (previousRT->notEmpty()) then 
+                    insert(previousRT->first(),trustee) into ReputationPerson;
+                    result:= previousRT->first().reputation; -- they should all have the same value
+                else 
+                    combinedFT := self.client->iterate(c; s:Sequence(SBoolean) = Sequence{} |
+                            s->append(c.combinedFunctionalTrust(trustee,c.da)));
+                    if combinedFT->isEmpty() then 
+                        result:= SBoolean(0,0,1,0.5) -- no idea about that person
+                    else
+                        rep := new ReputationOpinion();
+                        f := combinedFT->first();
+                        rep.reputation := f.epistemicCumulativeBeliefFusion(combinedFT->excluding(f));
+                        rep.expirationDate := self.client->any(true).da.clock.now + self.expirationTime;
+                        insert(rep,trustee) into ReputationPerson;
+                        result := rep.reputation;
+                    end;
+                end;
+            end
+*/
+end
+
+association AppManagerToApplication between
+    AppManager [1] role server
+    TrustApplication [*] role client
+end
+----------------------------------------------------
+class ReputationOpinion < DigitalAvatarRecord
+    attributes
+        expirationDate : Integer init: -1
+        reputation : SBoolean init:SBoolean(0.8,0.0,0.2,0.5)
+    end
+
+association ReputationScope between
+    ReputationOpinion [*] role reputation
+    TrustApplication [1] role scope
+end
+
+association ReputationPerson between
+    ReputationOpinion [0..1] role reputation
+    PersonalInfo [1] role reputee
+end
+
+----------------------------------------------------
+-- ADDED TrustApplication between LocalTripShareApp y Application
+abstract class TrustApplication < Application
+    operations
+        directFunctionalTrust(truster:Contact,trustee:PersonalInfo):SBoolean =
+            let f:TrustOpinion = self.opinion->select(o|o.oclIsTypeOf(FunctionalTrust) and o.truster=truster and o.trustee=trustee)->any(true) in
+            if f=null then null -- SBoolean(0,0,1,0.5) -- vacuous opinion
+            else if (f.expirationDate<>-1) and (f.expirationDate < self.da.clock.now) then null -- SBoolean(0,0,1,0.5) -- vacuous opinion
+                else f.trust
+                endif
+            endif
+        directReferralTrust(truster:Contact,trustee:PersonalInfo):SBoolean =
+            let f:TrustOpinion = self.opinion->select(o|o.oclIsTypeOf(ReferralTrust) and o.truster=truster and o.trustee=trustee)->any(true) in
+            if f=null then null -- SBoolean(0,0,1,0.5) -- vacuous opinion
+            else if (f.expirationDate<>-1) and (f.expirationDate < self.da.clock.now) then null -- SBoolean(0,0,1,0.5) -- vacuous opinion
+                else f.trust
+                endif
+            endif
+        combinedFunctionalTrust(trustee:PersonalInfo):SBoolean = 
+            let myFT : SBoolean = self.directFunctionalTrust(self.da.me,trustee) in 
+            if myFT <>null then 
+                myFT -- if I have a direct functional trust, I return this value
+            else -- I need to see if I know people who trust that person
+                let RT : Set(Contact) = -- set of contacts who have a functional trust about "trustee" in this app
+                    self.opinion
+                    ->select(o|o.oclIsTypeOf(FunctionalTrust) and o.trustee = trustee)
+                    ->collect(o|o.truster)
+                    -- from those, I select those for which I also have a referral trust
+                    ->select(c| self.directReferralTrust(self.da.me,c)<>null) 
+                    ->asSet() in
+                if RT->isEmpty then SBoolean(0,0,1,0.5) -- no idea about that person
+                else
+                    let opinions:Sequence(SBoolean) = 
+                        RT->iterate(c ; s:Sequence(SBoolean) = Sequence{} | 
+                          s->append(self.directFunctionalTrust(c,trustee).discount(Sequence{self.directReferralTrust(self.da.me,c)}))) in
+                    let f:SBoolean = opinions->first() in
+                    let Q:Sequence(SBoolean) = opinions->excluding(f) in
+                    if Q->isEmpty then f 
+                    else f.epistemicCumulativeBeliefFusion(Q) -- f.consensusAndCompromiseFusion(Q) 
+                    endif 
+                endif
+            endif 
+        reputation(person:PersonalInfo) : SBoolean =
+        (self.reputation->select(reputee=person)->select(ro | ro.expirationDate <= self.da.clock.now)->any(true)).reputation
+/*          let ro : ReputationOpinion = 
+            self.reputation->select(reputee=person)->any(true) in
+          if ro <> Undefined and 
+             ro.expirationDate <= self.da.clock.now
+          then ro.reputation
+          else Undefined 
+          endif
+*/
+
+        findReputation(person:PersonalInfo) -- finds the reputation of a person by asking the DA contacts 
+            begin
+                declare contacts: Sequence(Contact), rep:ReputationOpinion, raux:ReputationOpinion, found:Boolean, i:Integer;
+                -- select from our contacts those who also have the Doctors App
+                contacts:=self.da.records->select(oclIsKindOf(Contact))->excluding(self.da.me)->select(c|c.ownerDA.localApp->select(a|a.oclIsKindOf(DoctorsApp))->notEmpty())->oclAsType(Set(Contact))->asSequence();
+                -- We iterate over those contacts until we found one with the reputation of the person we are looking for
+                found:=false;
+                i:=1;
+                while (not found) and (i <=contacts->size()) do
+                    if ((contacts->at(i)).ownerDA.localApp->select(a|a.oclIsKindOf(DoctorsApp))->any(true)).oclAsType(TrustApplication).reputation(person)<>null then
+                        raux := ((contacts->at(i)).ownerDA.localApp->select(a|a.oclIsKindOf(DoctorsApp))->any(true)).oclAsType(TrustApplication).reputation->select(r|r.reputee=person)->any(true);
+                        rep := new ReputationOpinion();
+                        rep.reputation:=raux.reputation;
+                        rep.expirationDate:=raux.expirationDate;
+                        insert(rep,person) into ReputationPerson;
+                        insert(rep,self) into ReputationScope;
+                        -- No need to continue because the rest will have the same copy of the reputation
+                        found:=true;
+                    end;
+                    i:=i+1;
+                end;
+            end 
+        
+        updateReputation(person:PersonalInfo,reputation:ReputationOpinion) -- updates the reputation of a person globally
+            begin
+                declare p:PersonalInfo, rep:ReputationOpinion;
+                -- we first look for the person, in case we have it already recorded 
+                p:=self.da.records->select(r|r.oclIsKindOf(PersonalInfo))
+                    ->oclAsType(Set(PersonalInfo))
+                    ->select(r|r.name=person.name)->any(true);
+                if p=null then -- person is not in our records 
+                    p:=new PersonalInfo(); -- we create a record for it
+                    p.name:=person.name;
+                    p.phone:=person.phone;
+                    p.address:=person.address;
+                    p.email:=person.email;
+                    p.lastModification:=person.lastModification;
+                    p.readPrivacy:=#private;
+                    p.writePrivacy:=#private;
+                    insert(self.da,p) into Records;
+                end;
+                if p.reputation->notEmpty() then -- update the reputation
+                    p.reputation.reputation:=reputation.reputation;
+                    p.reputation.expirationDate:=reputation.expirationDate;
+                    p.reputation.lastModification:=reputation.lastModification;
+                    p.reputation.readPrivacy:=#public;
+                    p.reputation.writePrivacy:=#public;
+                else
+                    rep := new ReputationOpinion(); -- we make a copy in our records
+                    rep.reputation:=reputation.reputation;
+                    rep.expirationDate:=reputation.expirationDate;
+                    rep.lastModification:=reputation.lastModification;
+                    rep.readPrivacy:=#public;
+                    rep.writePrivacy:=#public;
+                    insert(rep,p) into ReputationPerson;
+                    insert(rep,self) into ReputationScope;
+                end;
+            end 
+/*        runningForLeader()
+        requestVote()
+        vote()
+*/
+        recomputeReputation(person:PersonalInfo):SBoolean
+        collectFunctionalTrust(person:PersonalInfo):Sequence(Tuple(person:PersonalInfo,trust:FunctionalTrust))
+        broadcast(person:PersonalInfo,newreputation:ReputationOpinion)
+end
+
+class DoctorsApp < TrustApplication
+  operations
+----------------------------------------------------
+    selectDoctor(speciality:String) : Sequence(Doctor) =
+/** implementation based on trust
+        let l:Sequence(Doctor) = self.doctor->select(d|d.speciality->includes(speciality))->asSequence() in
+        l->iterate(d:Doctor;
+            acc:Sequence(Tuple(doc:Doctor,proj:Real)) = Sequence{} |
+            acc->append(Tuple{doc:d,proj:1.0-self.combinedFunctionalTrust(d).projection()}))->sortedBy(proj)->collect(doc)
+*/
+/** implementation based on trust and reputation 
+*/
+        let l:Sequence(Doctor) = self.doctor->select(d|d.speciality->includes(speciality))->asSequence() in
+        l->iterate(d:Doctor;
+            acc:Sequence(Tuple(doc:Doctor,proj:Real)) = Sequence{} |
+            acc->append(Tuple{doc:d,
+                proj:let r:SBoolean = self.reputation(d) in 
+                     let t:SBoolean = self.combinedFunctionalTrust(d) in
+                     1.0 - r.weightedBeliefFusion(Sequence{t}).projection()
+                }))->sortedBy(proj)->collect(doc)
+
+  end
+
+association Enrollment between
+    DoctorsApp [*] role app
+    Doctor [*]
+end
+
+----------------------------------------------------
+enum PrivacyLevel {private, public, granted}
+
+association ReadPrivacy between
+   DigitalAvatarRecord [*] role read
+   ContactGroup [*] role readGroups
+end
+association WritePrivacy between
+   DigitalAvatarRecord [*] role write
+   ContactGroup [*] role writeGroups
+end
+
+----------------------------------------------------
+class Clock
+    attributes
+        now : Integer init:0
+    operations
+        tick(time:Integer)
+            begin
+                self.now := self.now + time;
+            end
+    end
+----------------------------------------------------
+-- ADDED Sscope, truster and Trustee
+association Scope between
+    TrustOpinion [*] role opinion
+    TrustApplication [1] role scope
+end
+association Trustee between
+    TrustOpinion [*] role othersOpinion
+    PersonalInfo [1] role trustee
+end
+association Truster between
+    TrustOpinion [*] role myOpinion
+    Contact [1] role truster
+end
+
+----------------------------------------------------
+association ContactGroups between
+    ContactGroup [*] role group
+    Contact [*] role person
+end
+
+composition Records between
+    DigitalAvatar [1] role ownerDA
+    DigitalAvatarRecord [*] role records
+end
+
+association Time between
+    DigitalAvatar [*] role da
+    Clock [1] role clock
+end
+
+association Applications between 
+    DigitalAvatar [1] role da
+    Application [*] role localApp
+end
+
+-- aggregation Deployment between
+--     Application [1] role app
+--     LocalApplication [1..*] role localApp
+-- end
+
+association MyDetails between
+    DigitalAvatar [0..1] role da
+    Contact [1] role me derive = self.records->select(oclIsTypeOf(Contact))->any(c|c.oclAsType(Contact).contactDA=self).oclAsType(Contact)
+end
+
+constraints
+context DigitalAvatar inv MeInMyContacts:
+    self.records->select(oclIsTypeOf(Contact))->one(c|c.oclAsType(Contact).contactDA=self)
+-- context DigitalAvatar inv UniqueId:
+--     DigitalAvatar.allInstances->isUnique(digitalAvatarId)
+
+--context Application inv DifferentAvatars:
+--    Application.allInstances->forAll(ap1,ap2|ap1<>ap2 implies (ap1.da=ap2.da implies ap1.name<>ap2.name))
+
+-------------------------------------------------
+-- ADDED the NoSelfOpinion Invariant
+context TrustOpinion inv noSelfOpinion:
+    self.truster<>self.trustee
+
+context TrustOpinion inv NoDups:
+    TrustOpinion.allInstances->forAll(t1,t2| (t1.truster=t2.truster and t1.trustee=t2.trustee) implies t1=t2)
+
